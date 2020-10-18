@@ -1,4 +1,4 @@
-# forecasting-financial-variables
+# Forecasting Financial Variables
 
 This study explored modeling and forecasting of five different financial variables using the Autoregressive Integrated Moving Average (ARIMA), Vector Autoregressive (VAR), and the exponential smoothing models. The Augmented Dickey-Fuller (ADF) and the Kwiatkowski–Phillips–Schmidt–Shin (KPSS) tests were conducted to test for unit roots in the time series.
 
