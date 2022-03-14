@@ -1,0 +1,200 @@
+---
+title: "Testing for unit roots in R"
+author: "Ani Laliashvili"
+date: "3/2/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This R program can be used interactively to forecast an ARIMA process.
+
+The 'forecast' package does a nice job of working with the data and forecasting.
+
+
+```{r}
+library(readxl)
+data500 <- read_excel("c:/Users/anila/OneDrive/Desktop/Forecasting/Final/ARIMA/500Data.xlsx")
+View(data500)
+library(forecast)
+```
+Now, organize the data as a time series. 
+
+```{r}
+x <- data500[,3]
+y <- ts(data = x, start = c(2011,2), frequency = 4, end = c(2019,4)) # data start in 2011Q2 and end in 2019Q4.
+#y 
+
+```
+
+Begin with a plot.
+
+```{r}
+plot(y)
+```
+
+Let's take out the mean and calculate the ac's and pac's. 
+
+```{r}
+R_mean <- lm(y ~ 1)
+BIC(R_mean)
+AIC(R_mean)
+RES_mean <- residuals.lm(R_mean)
+plot(RES_mean)
+Acf(RES_mean)
+Pacf(RES_mean)
+
+
+```
+
+Note that the ac's die out very slowly, and the pac's go away after the first one, suggesting a possibility of a unit root.
+
+Let's run the KPSS test. This tells us how many unit roots must be taken out to make the series stationary. 
+
+```{r}
+ndiffs(RES_mean,test="kpss")
+
+
+```
+
+This says that according to the KPSS test there is no unit root.
+
+A similar method for the ADF test.
+
+```{r}
+ndiffs(RES_mean,test="adf")
+```
+
+The ADF test says that taking out only 1 unit root is needed to make it stationary.
+
+Let's take out one unit root and reexamine the ac's and pac's to see if it looks like a unit root or not.
+
+```{r}
+R_D1 <- Arima(y, order = c(0,1,0)) 
+summary(R_D1)
+RES_D1 <- residuals(R_D1)
+plot(RES_D1)
+Acf(RES_D1)
+Pacf(RES_D1)
+
+```
+This does not look  like a unit root, so it appears that taking out only 1 unit root is enough.
+
+We can run the unit roots tests again.
+
+```{r}
+ndiffs(RES_D1,test="kpss")
+ndiffs(RES_D1,test="adf")
+```
+
+No unit roots remain, so we can now proceed with our normal procedures for ARIMA modeling.
+
+Now we will compare the trend model with the mean model.
+
+A trend comes from regressing the variable on a vector of length N, numbered 1 to N, plus a constant.
+
+```{r}
+trend <- lm(RES_D1 ~ c(1:length(RES_D1)))
+summary(trend)
+```
+
+```{r}
+AIC(trend)
+```
+
+```{r}
+BIC(trend)
+```
+
+```{r}
+REStrend <- residuals(trend)
+plot(REStrend)
+```
+
+We have found that R_D1 model is better.
+
+
+Now, let's look at the ac's and pac's. 
+
+
+```{r}
+
+Acf(RES_D1)
+
+```
+
+Here are the pac's.
+
+```{r}
+Pacf(RES_D1)
+```
+Note that there are no significant ac's, which suggests MA(0). There are 0 significant pac's, so that suggests an AR(0).
+
+Let's check around this.
+
+
+```{r}
+R2 <- Arima(RES_D1, order = c(1,0,0)) 
+summary(R2)
+
+```
+Note that the BIC decreased from the original, so the MA(1) model is better than the original.
+
+Next, let's try adding an AR term to see if that helps or hurts.
+
+```{r}
+R3 <- Arima(RES_D1, order = c(1,0,1)) 
+summary(R3)
+```
+
+```{r}
+R4 <- Arima(RES_D1, order = c(2,0,0)) 
+summary(R4)
+```
+
+Without the unit root
+
+```{r}
+R5 <- Arima(RES_mean, order = c(1,0,0)) 
+summary(R5)
+```
+
+```{r}
+R6 <- Arima(RES_mean, order = c(1,0,1)) 
+summary(R6)
+```
+
+```{r}
+R7 <- Arima(RES_mean, order = c(2,0,0)) 
+summary(R7)
+```
+
+Note that we have bracketed the BIC minimum with an ARIMA(1,0,0). We have tried ARIMA(1,0,1) and ARIMA(2,0,0) and more ARIMA models and all have higher BIC. So stop here for BIC. 
+
+
+The BIC best model is ARIMA(1,0,0).
+
+Now let's check the residuals for white noise 
+
+
+```{r}
+checkresiduals(R_D1)
+```
+
+
+The residuals are somewhat close to white noise but the Ljung-Box test rejects the null hypothesis of white noise at the .05 confidence level. 
+
+Next, let’s forecast two years (8 quarters) ahead.
+
+```{r}
+plot(forecast(R_D1,h=8))
+forR400 <- forecast(R_D1, h = 8) 
+print(forR400)
+```
+

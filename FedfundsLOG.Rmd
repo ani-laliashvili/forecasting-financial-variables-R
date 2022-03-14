@@ -1,0 +1,221 @@
+---
+title: "Untitled"
+author: "Ani Laliashvili"
+date: "5/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This R program can be used interactively to forecast an ARIMA process.
+
+The 'forecast' package does a nice job of working with the data and forecasting.
+
+
+```{r}
+library(readxl)
+datafed <- read_excel("c:/Users/anila/OneDrive/Desktop/Forecasting/Final/ARIMA/FEDFUNDS1.xls")
+View(datafed)
+library(forecast)
+```
+Now, organize the data as a time series. 
+
+```{r}
+x <- datafed[,3]
+y <- ts(data = x, start = c(1954,3), frequency = 4, end = c(2019,4)) # data start in 1954Q3 and end in 2019Q4.
+#y 
+
+```
+
+Begin with a plot.
+
+```{r}
+plot(y)
+```
+
+Let's take out the mean and calculate the ac's and pac's. 
+
+```{r}
+R_mean <- lm(y ~ 1)
+BIC(R_mean)
+AIC(R_mean)
+RES_mean <- residuals.lm(R_mean)
+plot(RES_mean)
+Acf(RES_mean)
+Pacf(RES_mean)
+
+
+```
+
+Note that the ac's die out very slowly, but the pac's don't go away after the first one, suggesting a possibility of a unit root.
+
+Let's run the KPSS test. This tells us how many unit roots must be taken out to make the series stationary. 
+
+```{r}
+ndiffs(RES_mean,test="kpss")
+
+
+```
+
+This says that according to the KPSS test there is one unit root.
+
+A similar method for the ADF test.
+
+```{r}
+ndiffs(RES_mean,test="adf")
+```
+
+The ADF test also says that taking out only 1 unit root is needed to make it stationary.
+
+Let's take out one unit root and reexamine the ac's and pac's to see if it looks like a unit root or not.
+
+```{r}
+auto.arima(y, seasonal=FALSE, approximation=FALSE, ic = "bic", stepwise=FALSE)
+```
+
+
+```{r}
+R_D1 <- Arima(y, order = c(0,1,0)) 
+summary(R_D1)
+RES_D1 <- residuals(R_D1)
+plot(RES_D1)
+Acf(RES_D1)
+Pacf(RES_D1)
+
+```
+This does not look  like a unit root, so it appears that taking out only 1 unit root is enough.
+
+We can run the unit roots tests again.
+
+```{r}
+ndiffs(RES_D1,test="kpss")
+ndiffs(RES_D1,test="adf")
+```
+
+No unit roots remain, so we can now proceed with our normal procedures for ARIMA modeling.
+
+Now we will compare the trend model with the mean model.
+
+A trend comes from regressing the variable on a vector of length N, numbered 1 to N, plus a constant.
+
+```{r}
+trend <- lm(RES_D1 ~ c(1:length(RES_D1)))
+summary(trend)
+```
+
+```{r}
+AIC(trend)
+```
+
+```{r}
+BIC(trend)
+```
+
+```{r}
+REStrend <- residuals(trend)
+plot(RES_D1)
+```
+
+We have found that R_D1 model is better because BIC is lower.
+
+
+Now, let's look at the ac's and pac's of R_D1 again. 
+
+
+```{r}
+
+Acf(RES_D1)
+
+```
+
+Here are the pac's.
+
+
+```{r}
+Pacf(RES_D1)
+```
+Note that there is 1 significant ac at lag 1. After the first pac, which is always 1, there are 2 significant pac's, so that suggests an AR(2) or MA(1).
+
+So, we start with an AR(2) and go from there.
+
+
+
+```{r}
+R2 <- Arima(RES_D1, order = c(1,0,0)) 
+summary(R2)
+
+```
+
+
+Note that the AIC and BIC both decline from ARIMA(0,1,0), so the AR(2) model is better than just the differenced model.
+
+Next, let's try adding an MA term to see if that helps or hurts.
+
+```{r}
+R3 <- Arima(RES_D1, order = c(1,0,1)) 
+summary(R3)
+```
+
+Note that both AIC and BIC declined.
+
+So, now we try a set of models all around the best model and see what happens to AIC and BIC.
+
+
+```{r}
+R4 <- Arima(RES_D1, order = c(0,0,2)) 
+summary(R4)
+
+```
+```{r}
+R5 <- Arima(RES_D1, order = c(0,0,1)) 
+summary(R5)
+
+```
+
+```{r}
+R6 <- Arima(RES_D1, order = c(1,0,1)) 
+summary(R6)
+
+```
+
+```{r}
+R7 <- Arima(RES_D1, order = c(1,0,2)) 
+summary(R7)
+
+```
+
+```{r}
+R8 <- Arima(RES_D1, order = c(1,0,0)) 
+summary(R8)
+
+```
+```{r}
+R9 <- Arima(RES_D1, order = c(0,0,1)) 
+summary(R9)
+
+```
+
+Note that we have bracketed the BIC minimum with an ARIMA(1,1,1). We have tried ARIMA(1,1,2), ARIMA(1,1,0), ARIMA(2,1,1), ARIMA(0,1,1) and all have higher BIC. So stop here for BIC. 
+
+The BIC best model is ARIMA(1,1,1).
+
+
+Now let's check the residuals for white noise 
+
+
+```{r}
+checkresiduals(R5)
+```
+
+The residuals are somewhat close to white noise but the Ljung-Box test rejects the null hypothesis of white noise at the .05 confidence level. 
+
+Next, let’s forecast two years (8 quarters) ahead.
+
+```{r}
+plot(forecast(R5,h=8))
+forR400 <- forecast(R5, h = 8) 
+print(forR400)
+```
